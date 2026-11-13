@@ -46,7 +46,9 @@ jobs:
 
       - name: ct-ng build
         working-directory: ctng-work
-        run: ct-ng build 2>&1 | tee build.log
+        run: |
+          set -o pipefail
+          ct-ng build 2>&1 | tee build.log
 
       - name: Upload build log on failure
         if: failure()
@@ -58,20 +60,28 @@ jobs:
       - name: Extract bundle
         id: extract
         run: |
-          SRC="ctng-work/x-tools/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+          SYSROOT=$(find ctng-work/x-tools -type d -name sysroot | head -n1)
+          if [[ -z "${SYSROOT}" ]]; then
+            echo "ERROR: cannot find sysroot"
+            exit 1
+          fi
+          echo "Found sysroot: ${SYSROOT}"
+
           DEST="dist/sysroot-aarch64-gcc-8.5.0-glibc-2.28"
           mkdir -p "${DEST}/lib" "${DEST}/usr/lib"
 
-          cp -a "${SRC}/lib/ld-linux-aarch64.so.1" "${DEST}/lib/"
+          find "${SYSROOT}" -maxdepth 2 \( -name 'ld-*' -o -name 'libstdc++*' \) -ls
+
+          cp -a "${SYSROOT}/lib/ld-linux-aarch64.so.1" "${DEST}/lib/"
           cp -a \
-            "${SRC}/lib/libc.so.6" \
-            "${SRC}/lib/libpthread.so.0" \
-            "${SRC}/lib/libdl.so.2" \
-            "${SRC}/lib/libm.so.6" \
-            "${SRC}/lib/librt.so.1" \
+            "${SYSROOT}/lib/libc.so.6" \
+            "${SYSROOT}/lib/libpthread.so.0" \
+            "${SYSROOT}/lib/libdl.so.2" \
+            "${SYSROOT}/lib/libm.so.6" \
+            "${SYSROOT}/lib/librt.so.1" \
             "${DEST}/lib/"
 
-          cp -a "${SRC}/usr/lib/libstdc++.so.6" "${DEST}/usr/lib/"
+          cp -a "${SYSROOT}/usr/lib/libstdc++.so.6" "${DEST}/usr/lib/"
 
           TAR="sysroot-aarch64-gcc-8.5.0-glibc-2.28.tar.gz"
           tar -czf "${TAR}" -C "${DEST}" .
