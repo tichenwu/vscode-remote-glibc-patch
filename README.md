@@ -10,43 +10,12 @@ A workaround was provided by [official docs](https://code.visualstudio.com/docs/
 
 ## How to use
 
+this repostory only privode the pre-build sysroot files on x86_64 and aarch64
+please refer to the official docs for more information.
+
 ### Download the appropriate tarball
 
-Find your Linux kernel version via `uname -r`. For example, on CentOS-7 it might be
 
-```
-$ uname -r
-3.10.0-1160.118.1.el7.x86_64
-```
-
-Go to the [Release Page](https://github.com/hsfzxjy/vscode-remote-glibc-patch/releases/tag/BUILD) and download the tarball with kernel version **less than or equal** to the one you found via `uname -r`. For the example above, you should download `x86_64-kernel-3.4.113-gcc-8.5.0-glibc-2.28.tgz`.
-
-On an aarch64 server (e.g. Kylin V10):
-
-please refer to the official doc, this repo only provide sysroot file for kylin system.
-
-### Extract the tarball
-
-Extract the tarball such that it forms such a directory structure:
-
-```
-your/custom/path/
-├── init.sh
-├── patchelf
-├── ...
-```
-
-where `your/custom/path` could be chosen arbitrarily.
-
-### Modify your shell profiles
-
-Add the following lines to your shell profile:
-
-```bash
-eval "$(your/custom/path/init.sh)"
-```
-
-Depending on your use case, you may want to modify `~/.bashrc`/`~/.bash_profile` (for yourself only) or `/etc/bashrc`/`/etc/profile` (for all users).
 
 ## Contributing
 

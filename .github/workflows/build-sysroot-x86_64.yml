@@ -1,4 +1,4 @@
-name: Build VS Code Remote CTNG Sysroot
+name: Build CTNG Sysroot x86_64
 on:
   workflow_dispatch:
   push:
@@ -6,24 +6,15 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        cfg:
-          - name: x86_64-gcc-8.5.0-glibc-2.28
-            cfg_file: x86_64-gcc-8.5.0-glibc-2.28_new.config
-            gnu_arch: x86_64
-            ld: ld-linux-x86-64.so.2
-          - name: aarch64-gcc-8.5.0-glibc-2.28
-            cfg_file: aarch64-gcc-8.5.0-glibc-2.28.config
-            gnu_arch: aarch64
-            ld: ld-linux-aarch64.so.1
-
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
-      - name: Install crosstool‑ng dependencies
+      - name: Show disk
+        run: df -h
+
+      - name: Install deps
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -31,33 +22,47 @@ jobs:
             python3-dev autoconf automake libtool libtool-bin gawk wget bzip2 \
             xz-utils unzip patch rsync curl ca-certificates
 
-      - name: Build & install crosstool‑ng 1.26.0
+      - name: Build & install crosstool-ng 1.26.0
         run: |
           wget -q http://crosstool-ng.org/download/crosstool-ng/crosstool-ng-1.26.0.tar.bz2
           tar -xjf crosstool-ng-1.26.0.tar.bz2
           cd crosstool-ng-1.26.0
           ./configure --prefix="$PWD/out"
-          make -j "$(nproc)"
+          make -j1
           make install
           echo "$PWD/out/bin" >> $GITHUB_PATH
 
-      - name: Prepare ct‑ng workdir, use embedded config
+      - name: Prepare workdir
         run: |
           mkdir -p ctng-work
-          cp "configs/${{ matrix.cfg.cfg_file }}" ctng-work/.config
+          cp "configs/x86_64-gcc-8.5.0-glibc-2.28.config" ctng-work/.config
+          sed -i 's|CT_PARALLEL_JOBS=.*|CT_PARALLEL_JOBS="1"|' ctng-work/.config
 
-      - name: ct‑ng build
+      - name: Cache source tarballs
+        uses: actions/cache@v4
+        with:
+          path: ctng-work/src
+          key: ctng-src-x86_64-gcc-8.5.0-glibc-2.28
+
+      - name: ct-ng build
         working-directory: ctng-work
-        run: ct-ng build
+        run: ct-ng build 2>&1 | tee build.log
 
-      - name: Extract runtime sysroot bundle
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctng-buildlog-x86_64
+          path: ctng-work/build.log
+
+      - name: Extract bundle
         id: extract
         run: |
-          SRC="ctng-work/x-tools/${{ matrix.cfg.gnu_arch }}-linux-gnu/${{ matrix.cfg.gnu_arch }}-linux-gnu/sysroot"
-          DEST="dist/sysroot-${{ matrix.cfg.name }}"
+          SRC="ctng-work/x-tools/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+          DEST="dist/sysroot-x86_64-gcc-8.5.0-glibc-2.28"
           mkdir -p "${DEST}/lib" "${DEST}/usr/lib"
 
-          cp -a "${SRC}/lib/${{ matrix.cfg.ld }}" "${DEST}/lib/"
+          cp -a "${SRC}/lib/ld-linux-x86-64.so.2" "${DEST}/lib/"
           cp -a \
             "${SRC}/lib/libc.so.6" \
             "${SRC}/lib/libpthread.so.0" \
@@ -68,22 +73,22 @@ jobs:
 
           cp -a "${SRC}/usr/lib/libstdc++.so.6" "${DEST}/usr/lib/"
 
-          TAR="sysroot-${{ matrix.cfg.name }}.tar.gz"
+          TAR="sysroot-x86_64-gcc-8.5.0-glibc-2.28.tar.gz"
           tar -czf "${TAR}" -C "${DEST}" .
           echo "tar=${TAR}" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.cfg.name }}
+          name: sysroot-x86_64
           path: ${{ steps.extract.outputs.tar }}
 
-      - name: Publish to Release
+      - name: Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: sysroot-$(date +%Y%m%d-%H%M%S)
-          name: Built CTNG Sysroot
+          tag_name: sysroot-x86_64-$(date +%Y%m%d-%H%M%S)
+          name: Built x86_64 CTNG Sysroot
           files: ${{ steps.extract.outputs.tar }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
