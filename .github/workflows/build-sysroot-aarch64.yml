@@ -36,12 +36,13 @@ jobs:
         run: |
           mkdir -p ctng-work
           cp "configs/aarch64-gcc-8.5.0-glibc-2.28.config" ctng-work/.config
-          sed -i 's|CT_PARALLEL_JOBS=.*|CT_PARALLEL_JOBS="1"|' ctng-work/.config
+          # 如果你想保留 config 里 CT_PARALLEL_JOBS=6，注释掉下面这一行
+          # sed -i 's|CT_PARALLEL_JOBS=.*|CT_PARALLEL_JOBS="1"|' ctng-work/.config
 
       - name: Cache source tarballs
         uses: actions/cache@v4
         with:
-          path: ctng-work/src
+          path: ctng-work/downloads
           key: ctng-src-aarch64-gcc-8.5.0-glibc-2.28
 
       - name: ct-ng build
@@ -49,6 +50,19 @@ jobs:
         run: |
           set -o pipefail
           ct-ng build 2>&1 | tee build.log
+
+      - name: Dump ctng-work debug tree
+        run: |
+          ls -la ctng-work
+          echo "=== looking for sysroot ==="
+          find ctng-work -maxdepth 3 -type d -name sysroot
+
+      - name: Sanity check sysroot exists
+        run: |
+          if ! find ctng-work -type d -name sysroot | grep -q .; then
+            echo "FATAL: ct-ng build finished without producing sysroot"
+            exit 1
+          fi
 
       - name: Upload build log on failure
         if: failure()
@@ -60,9 +74,10 @@ jobs:
       - name: Extract bundle
         id: extract
         run: |
-          SYSROOT=$(find ctng-work/x-tools -type d -name sysroot | head -n1)
+          SYSROOT=$(find ctng-work -type d -name sysroot | head -n1)
           if [[ -z "${SYSROOT}" ]]; then
-            echo "ERROR: cannot find sysroot"
+            echo "ERROR: cannot find sysroot anywhere under ctng-work"
+            ls -laR ctng-work
             exit 1
           fi
           echo "Found sysroot: ${SYSROOT}"

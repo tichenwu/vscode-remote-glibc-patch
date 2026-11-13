@@ -14,7 +14,7 @@ jobs:
       - name: Show disk
         run: df -h
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -22,7 +22,7 @@ jobs:
             python3-dev autoconf automake libtool libtool-bin gawk wget bzip2 \
             xz-utils unzip patch rsync curl ca-certificates
 
-      - name: Build & install crosstool-ng 1.26.0
+      - name: Build & install crosstool-NG 1.26.0
         run: |
           wget -q http://crosstool-ng.org/download/crosstool-ng/crosstool-ng-1.26.0.tar.bz2
           tar -xjf crosstool-ng-1.26.0.tar.bz2
@@ -36,12 +36,13 @@ jobs:
         run: |
           mkdir -p ctng-work
           cp "configs/x86_64-gcc-8.5.0-glibc-2.28.config" ctng-work/.config
-          sed -i 's|CT_PARALLEL_JOBS=.*|CT_PARALLEL_JOBS="1"|' ctng-work/.config
+          # 如果 GitHub Runner 内存不足，取消下面这行注释，压到单线程
+          # sed -i 's|CT_PARALLEL_JOBS=.*|CT_PARALLEL_JOBS="1"|' ctng-work/.config
 
       - name: Cache source tarballs
         uses: actions/cache@v4
         with:
-          path: ctng-work/src
+          path: ctng-work/downloads
           key: ctng-src-x86_64-gcc-8.5.0-glibc-2.28
 
       - name: ct-ng build
@@ -50,6 +51,49 @@ jobs:
           set -o pipefail
           ct-ng build 2>&1 | tee build.log
 
+      - name: Dump directory tree debug
+        run: |
+          ls -la ctng-work
+          echo "=== searching sysroot ==="
+          find ctng-work -maxdepth 3 -type d -name sysroot
+
+      - name: Sanity check sysroot exists
+        run: |
+          if ! find ctng-work -type d -name sysroot | grep -q .; then
+            echo "FATAL: build finished without sysroot"
+            exit 1
+          fi
+
+      - name: Extract sysroot bundle
+        id: extract
+        run: |
+          SYSROOT=$(find ctng-work -type d -name sysroot | head -n1)
+          if [[ -z "${SYSROOT}" ]]; then
+            echo "ERROR: cannot locate sysroot"
+            ls -laR ctng-work
+            exit 1
+          fi
+          echo "Found sysroot: ${SYSROOT}"
+
+          DEST="dist/sysroot-x86_64-gcc-8.5.0-glibc-2.28"
+          mkdir -p "${DEST}/lib64" "${DEST}/usr/lib64"
+
+          # x86_64: ld 放在 lib64
+          cp -a "${SYSROOT}/lib64/ld-linux-x86-64.so.2" "${DEST}/lib64/"
+          cp -a \
+            "${SYSROOT}/lib64/libc.so.6" \
+            "${SYSROOT}/lib64/libpthread.so.0" \
+            "${SYSROOT}/lib64/libdl.so.2" \
+            "${SYSROOT}/lib64/libm.so.6" \
+            "${SYSROOT}/lib64/librt.so.1" \
+            "${DEST}/lib64/"
+
+          cp -a "${SYSROOT}/usr/lib64/libstdc++.so.6" "${DEST}/usr/lib64/"
+
+          TAR="sysroot-x86_64-gcc-8.5.0-glibc-2.28.tar.gz"
+          tar -czf "${TAR}" -C "${DEST}" .
+          echo "tar=${TAR}" >> $GITHUB_OUTPUT
+
       - name: Upload build log on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -57,37 +101,7 @@ jobs:
           name: ctng-buildlog-x86_64
           path: ctng-work/build.log
 
-      - name: Extract bundle
-        id: extract
-        run: |
-          SYSROOT=$(find ctng-work/x-tools -type d -name sysroot | head -n1)
-          if [[ -z "${SYSROOT}" ]]; then
-            echo "ERROR: cannot find sysroot"
-            exit 1
-          fi
-          echo "Found sysroot: ${SYSROOT}"
-
-          DEST="dist/sysroot-x86_64-gcc-8.5.0-glibc-2.28"
-          mkdir -p "${DEST}/lib" "${DEST}/usr/lib"
-
-          find "${SYSROOT}" -maxdepth 2 \( -name 'ld-*' -o -name 'libstdc++*' \) -ls
-
-          cp -a "${SYSROOT}/lib/ld-linux-x86-64.so.2" "${DEST}/lib/"
-          cp -a \
-            "${SYSROOT}/lib/libc.so.6" \
-            "${SYSROOT}/lib/libpthread.so.0" \
-            "${SYSROOT}/lib/libdl.so.2" \
-            "${SYSROOT}/lib/libm.so.6" \
-            "${SYSROOT}/lib/librt.so.1" \
-            "${DEST}/lib/"
-
-          cp -a "${SYSROOT}/usr/lib/libstdc++.so.6" "${DEST}/usr/lib/"
-
-          TAR="sysroot-x86_64-gcc-8.5.0-glibc-2.28.tar.gz"
-          tar -czf "${TAR}" -C "${DEST}" .
-          echo "tar=${TAR}" >> $GITHUB_OUTPUT
-
-      - name: Upload artifact
+      - name: Upload sysroot artifact
         uses: actions/upload-artifact@v4
         with:
           name: sysroot-x86_64
