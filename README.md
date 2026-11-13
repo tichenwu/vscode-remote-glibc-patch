@@ -21,6 +21,17 @@ $ uname -r
 
 Go to the [Release Page](https://github.com/hsfzxjy/vscode-remote-glibc-patch/releases/tag/BUILD) and download the tarball with kernel version **less than or equal** to the one you found via `uname -r`. For the example above, you should download `x86_64-kernel-3.4.113-gcc-8.5.0-glibc-2.28.tgz`.
 
+On an aarch64 server (e.g. Kylin V10):
+
+```
+$ uname -m
+aarch64
+$ uname -r
+4.19.90-23.6.v2101.ky10.aarch64
+```
+
+you should download `aarch64-kernel-4.19.90-gcc-8.5.0-glibc-2.28.tgz`.
+
 ### Extract the tarball
 
 Extract the tarball such that it forms such a directory structure:
