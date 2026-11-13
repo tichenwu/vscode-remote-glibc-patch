@@ -23,14 +23,7 @@ Go to the [Release Page](https://github.com/hsfzxjy/vscode-remote-glibc-patch/re
 
 On an aarch64 server (e.g. Kylin V10):
 
-```
-$ uname -m
-aarch64
-$ uname -r
-4.19.90-23.6.v2101.ky10.aarch64
-```
-
-you should download `aarch64-kernel-4.19.90-gcc-8.5.0-glibc-2.28.tgz`.
+please refer to the official doc, this repo only provide sysroot file for kylin system.
 
 ### Extract the tarball
 
