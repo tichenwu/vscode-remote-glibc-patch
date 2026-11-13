@@ -64,7 +64,7 @@ jobs:
             exit 1
           fi
 
-      - name: Extract sysroot bundle
+      - name: Extract bundle
         id: extract
         run: |
           SYSROOT=$(find ctng-work -type d -name sysroot | head -n1)
@@ -76,11 +76,11 @@ jobs:
           echo "Found sysroot: ${SYSROOT}"
 
           DEST="dist/sysroot-x86_64-gcc-8.5.0-glibc-2.28"
-          mkdir -p "${DEST}/lib64" "${DEST}/usr/lib64"
+          mkdir -p "${DEST}/lib64"
 
-          # x86_64: ld 放在 lib64
-          cp -a "${SYSROOT}/lib64/ld-linux-x86-64.so.2" "${DEST}/lib64/"
+          # x86_64 基础 glibc
           cp -a \
+            "${SYSROOT}/lib64/ld-linux-x86-64.so.2" \
             "${SYSROOT}/lib64/libc.so.6" \
             "${SYSROOT}/lib64/libpthread.so.0" \
             "${SYSROOT}/lib64/libdl.so.2" \
@@ -88,7 +88,15 @@ jobs:
             "${SYSROOT}/lib64/librt.so.1" \
             "${DEST}/lib64/"
 
-          cp -a "${SYSROOT}/usr/lib64/libstdc++.so.6" "${DEST}/usr/lib64/"
+          # 动态查找 libstdc++.so.6
+          LIBSTDCXX=$(find "${SYSROOT}" -name "libstdc++.so.6" | head -n1)
+          if [[ -z "${LIBSTDCXX}" ]]; then
+            echo "ERROR: libstdc++.so.6 not found inside sysroot"
+            exit 1
+          fi
+          cp -a "${LIBSTDCXX}" "${DEST}/lib64/"
+          REAL_LIBSTDCXX=$(readlink -f "${LIBSTDCXX}")
+          cp -a "${REAL_LIBSTDCXX}" "${DEST}/lib64/"
 
           TAR="sysroot-x86_64-gcc-8.5.0-glibc-2.28.tar.gz"
           tar -czf "${TAR}" -C "${DEST}" .

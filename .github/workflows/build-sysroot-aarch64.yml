@@ -71,24 +71,24 @@ jobs:
           name: ctng-buildlog-aarch64
           path: ctng-work/build.log
 
-      - name: Extract bundle
+      - name: Extract sysroot bundle
         id: extract
         run: |
           SYSROOT=$(find ctng-work -type d -name sysroot | head -n1)
           if [[ -z "${SYSROOT}" ]]; then
-            echo "ERROR: cannot find sysroot anywhere under ctng-work"
+            echo "ERROR: cannot locate sysroot"
             ls -laR ctng-work
             exit 1
           fi
           echo "Found sysroot: ${SYSROOT}"
 
           DEST="dist/sysroot-aarch64-gcc-8.5.0-glibc-2.28"
-          mkdir -p "${DEST}/lib" "${DEST}/usr/lib"
+          mkdir -p "${DEST}/lib"
 
-          find "${SYSROOT}" -maxdepth 2 \( -name 'ld-*' -o -name 'libstdc++*' \) -ls
-
-          cp -a "${SYSROOT}/lib/ld-linux-aarch64.so.1" "${DEST}/lib/"
+          # aarch64 基础 glibc
           cp -a \
+            "${SYSROOT}/lib/ld-linux-aarch64.so.1" \
+            "${SYSROOT}/lib/ld-2.28.so" \
             "${SYSROOT}/lib/libc.so.6" \
             "${SYSROOT}/lib/libpthread.so.0" \
             "${SYSROOT}/lib/libdl.so.2" \
@@ -96,7 +96,16 @@ jobs:
             "${SYSROOT}/lib/librt.so.1" \
             "${DEST}/lib/"
 
-          cp -a "${SYSROOT}/usr/lib/libstdc++.so.6" "${DEST}/usr/lib/"
+          # 动态查找 libstdc++.so.6，不再硬编码 usr/lib
+          LIBSTDCXX=$(find "${SYSROOT}" -name "libstdc++.so.6" | head -n1)
+          if [[ -z "${LIBSTDCXX}" ]]; then
+            echo "ERROR: libstdc++.so.6 not found inside sysroot"
+            exit 1
+          fi
+          cp -a "${LIBSTDCXX}" "${DEST}/lib/"
+          # 顺带把真实本体也拷过来（libstdc++.so.6.0.25）
+          REAL_LIBSTDCXX=$(readlink -f "${LIBSTDCXX}")
+          cp -a "${REAL_LIBSTDCXX}" "${DEST}/lib/"
 
           TAR="sysroot-aarch64-gcc-8.5.0-glibc-2.28.tar.gz"
           tar -czf "${TAR}" -C "${DEST}" .
