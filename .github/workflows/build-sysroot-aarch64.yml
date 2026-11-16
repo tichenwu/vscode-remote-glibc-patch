@@ -2,7 +2,7 @@ name: Build CTNG Sysroot aarch64
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   build:
@@ -117,11 +117,16 @@ jobs:
           name: sysroot-aarch64
           path: ${{ steps.extract.outputs.tar }}
 
+      - name: Generate release tag
+        if: github.ref == 'refs/heads/master'
+        id: tag
+        run: echo "name=sysroot-aarch64-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+
       - name: Release
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: sysroot-aarch64-$(date +%Y%m%d-%H%M%S)
+          tag_name: ${{ steps.tag.outputs.name }}
           name: Built aarch64 CTNG Sysroot
           files: ${{ steps.extract.outputs.tar }}
         env:
