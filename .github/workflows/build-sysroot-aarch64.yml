@@ -86,7 +86,9 @@ jobs:
           mkdir -p "${DEST}/lib"
 
           # aarch64 基础 glibc
-          cp -a \
+          # 注意：-L 必须带上！sysroot 里这些 .so 全是符号链接，
+          # 不解引用的话 tar 包里只有悬空链接，压缩包只有几百 KB
+          cp -aL \
             "${SYSROOT}/lib/ld-linux-aarch64.so.1" \
             "${SYSROOT}/lib/ld-2.28.so" \
             "${SYSROOT}/lib/libc.so.6" \
@@ -102,32 +104,40 @@ jobs:
             echo "ERROR: libstdc++.so.6 not found inside sysroot"
             exit 1
           fi
-          cp -a "${LIBSTDCXX}" "${DEST}/lib/"
+          cp -aL "${LIBSTDCXX}" "${DEST}/lib/"
           # 顺带把真实本体也拷过来（libstdc++.so.6.0.25）
           REAL_LIBSTDCXX=$(readlink -f "${LIBSTDCXX}")
-          cp -a "${REAL_LIBSTDCXX}" "${DEST}/lib/"
+          cp -aL "${REAL_LIBSTDCXX}" "${DEST}/lib/"
+
+          # 校验：包内不允许存在符号链接（防止悬空链接混进产物）
+          if find "${DEST}" -type l | grep -q .; then
+            echo "ERROR: bundle contains symlinks:"
+            find "${DEST}" -type l
+            exit 1
+          fi
+          ls -la "${DEST}/lib"
 
           TAR="sysroot-aarch64-gcc-8.5.0-glibc-2.28.tar.gz"
           tar -czf "${TAR}" -C "${DEST}" .
           echo "tar=${TAR}" >> $GITHUB_OUTPUT
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sysroot-aarch64
-          path: ${{ steps.extract.outputs.tar }}
-
-      - name: Generate release tag
-        if: github.ref == 'refs/heads/master'
-        id: tag
-        run: echo "name=sysroot-aarch64-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          # 完整 sysroot 包（几百 MB 级别，含头文件、静态库、全套库）
+          # 这里保留符号链接（不加 -h）：链接目标都在包内，解压后有效，
+          # 也是交叉编译 sysroot 的标准形态
+          SYSROOT_DIR=$(basename "${SYSROOT}")
+          FULL_TAR="sysroot-aarch64-gcc-8.5.0-glibc-2.28-full.tar.gz"
+          tar -czf "${FULL_TAR}" -C "$(dirname "${SYSROOT}")" "${SYSROOT_DIR}"
+          echo "full_tar=${FULL_TAR}" >> $GITHUB_OUTPUT
+          ls -lh "${TAR}" "${FULL_TAR}"
 
       - name: Release
         if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.name }}
+          tag_name: sysroot-aarch64
           name: Built aarch64 CTNG Sysroot
-          files: ${{ steps.extract.outputs.tar }}
+          files: |
+            ${{ steps.extract.outputs.tar }}
+            ${{ steps.extract.outputs.full_tar }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
