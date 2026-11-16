@@ -4,6 +4,14 @@ on:
   push:
     branches: [ master ]
 
+permissions:
+  contents: write
+
+# 同一 workflow 的新推送会取消还在跑的旧构建，避免同 tag 竞争和浪费时长
+concurrency:
+  group: build-sysroot-aarch64
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
