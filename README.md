@@ -13,6 +13,16 @@ A workaround was provided by [official docs](https://code.visualstudio.com/docs/
 this repostory only privode the pre-build sysroot files on x86_64 and aarch64
 please refer to the official docs for more information.
 
+export VSCODE_SERVER_CUSTOM_GLIBC_LINKER="/xxx/lib/ld-linux-aarch64.so.1"
+export VSCODE_SERVER_CUSTOM_GLIBC_PATH="/xxx/lib"
+export VSCODE_SERVER_PATCHELF_PATH="/pathtoyourpatchelf"
+
+OR with full release version
+
+export VSCODE_SERVER_CUSTOM_GLIBC_LINKER="/xxx/sysroot/lib/ld-linux-aarch64.so.1"
+export VSCODE_SERVER_CUSTOM_GLIBC_PATH="/xxx/sysroot/lib"
+export VSCODE_SERVER_PATCHELF_PATH="/pathtoyourpatchelf"
+
 ### Download the appropriate tarball
 
 
